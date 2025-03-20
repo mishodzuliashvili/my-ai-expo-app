@@ -17,6 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Colors } from "@/constants/Colors";
+import { useChatHistory } from "@/providers/ChatHistoryProvider";
 
 const styles = StyleSheet.create({
     container: {
@@ -45,10 +46,12 @@ const styles = StyleSheet.create({
     },
     welcomeTitle: {
         fontSize: 32,
+        lineHeight: 30,
         fontWeight: "bold",
         marginBottom: 20,
         textAlign: "center",
         letterSpacing: 0.5,
+        height: "auto",
     },
     welcomeSubtitle: {
         fontSize: 16,
@@ -124,6 +127,7 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         marginBottom: 12,
+        backgroundColor: "transparent",
     },
     ideaTitle: {
         fontSize: 15,
@@ -188,6 +192,8 @@ const styles = StyleSheet.create({
 export default function HomeScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
+    const { chatHistory, setChatHistory } = useChatHistory();
+    const backgroundColor = Colors[colorScheme ?? "light"].background;
 
     const [inputText, setInputText] = useState("");
 
@@ -240,7 +246,6 @@ export default function HomeScreen() {
                     preview: "Start a new conversation",
                 };
 
-                // Update chat history
                 const historyData = await AsyncStorage.getItem("chatHistory");
                 let updatedHistory = [];
 
@@ -250,6 +255,7 @@ export default function HomeScreen() {
                 } else {
                     updatedHistory = [newChat];
                 }
+                setChatHistory(updatedHistory);
 
                 await AsyncStorage.setItem(
                     "chatHistory",
@@ -278,11 +284,13 @@ export default function HomeScreen() {
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollViewContent}
                 showsVerticalScrollIndicator={false}
+                overScrollMode="always"
             >
                 <ThemedView style={styles.welcomeContainer}>
                     <ThemedText style={styles.welcomeTitle}>
                         AI Chat Assistant
                     </ThemedText>
+
                     <ThemedText style={styles.welcomeSubtitle}>
                         Your personal AI companion for questions, ideas, and
                         conversations
@@ -295,7 +303,7 @@ export default function HomeScreen() {
                                     key={index}
                                     style={{
                                         ...styles.ideaCard,
-
+                                        backgroundColor: backgroundColor,
                                         borderColor:
                                             colorScheme === "dark"
                                                 ? "#2a2a2a"

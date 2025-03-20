@@ -19,17 +19,18 @@ import { Colors } from "@/constants/Colors";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import Markdown from "react-native-markdown-display";
+import { useChatHistory } from "@/providers/ChatHistoryProvider";
 
 export default function ChatScreen() {
     const { id } = useLocalSearchParams();
-    const [savedMessages, setSavedMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const colorScheme = useColorScheme();
     const scrollViewRef = useRef<ScrollView>(null);
     const inputRef = useRef<TextInput>(null);
+    const { chatHistory, setChatHistory } = useChatHistory();
 
     const textColor = Colors[colorScheme ?? "light"].text;
-    const markdownStyles = {};
+    const [isFirstLoad, setIsFirstLoad] = useState(true);
 
     useEffect(() => {
         const loadChatMessages = async () => {
@@ -40,7 +41,7 @@ export default function ChatScreen() {
                 );
                 if (messagesData) {
                     const parsedMessages = JSON.parse(messagesData);
-                    setSavedMessages(parsedMessages);
+                    setMessages(parsedMessages);
                 }
                 setIsLoading(false);
             } catch (error) {
@@ -54,90 +55,32 @@ export default function ChatScreen() {
         }
     }, [id]);
 
-    const { messages, error, handleInputChange, input, handleSubmit } = useChat(
-        {
-            fetch: expoFetch as unknown as typeof globalThis.fetch,
-            api: generateAPIUrl("/api/chat"),
-            onError: (error) => console.error(error, "ERROR"),
-            initialMessages: savedMessages,
-
-            onResponse: async () => {
-                setTimeout(async () => {
-                    inputRef.current?.focus();
-                    if (messages.length === 2) {
-                        try {
-                            const historyData = await AsyncStorage.getItem(
-                                "chatHistory"
-                            );
-                            if (historyData) {
-                                const history = JSON.parse(historyData);
-                                const updatedHistory = history.map(
-                                    (chat: any) => {
-                                        if (chat.id === id) {
-                                            const userMessage =
-                                                messages[0].content;
-                                            const title =
-                                                userMessage.length > 25
-                                                    ? userMessage.substring(
-                                                          0,
-                                                          25
-                                                      ) + "..."
-                                                    : userMessage;
-
-                                            const aiMessage =
-                                                messages[1].content;
-                                            const preview =
-                                                aiMessage.length > 40
-                                                    ? aiMessage.substring(
-                                                          0,
-                                                          40
-                                                      ) + "..."
-                                                    : aiMessage;
-
-                                            return {
-                                                ...chat,
-                                                title,
-                                                preview,
-                                                lastUpdated: Date.now(),
-                                            };
-                                        }
-                                        return chat;
-                                    }
-                                );
-
-                                await AsyncStorage.setItem(
-                                    "chatHistory",
-                                    JSON.stringify(updatedHistory)
-                                );
-                            }
-                        } catch (error) {
-                            console.error("Failed to update chat info:", error);
-                        }
-                    }
-
-                    try {
-                        await AsyncStorage.setItem(
-                            `chat_${id}_messages`,
-                            JSON.stringify(messages)
-                        );
-                    } catch (error) {
-                        console.error("Failed to save messages:", error);
-                    }
-                }, 100);
-            },
-        }
-    );
+    const {
+        messages,
+        error,
+        handleInputChange,
+        input,
+        handleSubmit,
+        setMessages,
+        status,
+        append,
+        reload,
+    } = useChat({
+        fetch: expoFetch as unknown as typeof globalThis.fetch,
+        api: generateAPIUrl("/api/chat"),
+        onError: (error) => console.error(error, "ERROR"),
+    });
 
     useEffect(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
         if (
+            isFirstLoad &&
             messages.length > 0 &&
             messages[messages.length - 1].role === "user"
         ) {
-            handleSubmit();
+            reload();
+            setIsFirstLoad(false);
         }
-    }, []);
-    useEffect(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
     }, [messages]);
 
     useEffect(() => {
@@ -155,10 +98,39 @@ export default function ChatScreen() {
         if (messages.length > 0) {
             saveMessages();
         }
+
+        if (messages.length === 2) {
+            setChatHistory(
+                chatHistory.map((chat) => {
+                    if (chat.id === id) {
+                        const userMessage = messages[0].content;
+                        const title =
+                            userMessage.length > 25
+                                ? userMessage.substring(0, 25) + "..."
+                                : userMessage;
+
+                        const aiMessage = messages[1].content;
+                        const preview =
+                            aiMessage.length > 40
+                                ? aiMessage.substring(0, 40) + "..."
+                                : aiMessage;
+
+                        return {
+                            ...chat,
+                            title,
+                            preview,
+                            lastUpdated: Date.now(),
+                        };
+                    }
+                    return chat;
+                })
+            );
+        }
+
+        inputRef.current?.focus();
     }, [messages, id]);
 
-    const isGenerating =
-        messages.length > 0 && messages[messages.length - 1].role === "user";
+    const isGenerating = status === "submitted" || status === "streaming";
 
     if (error) return <ThemedText>{error.message}</ThemedText>;
 
@@ -344,9 +316,9 @@ export default function ChatScreen() {
                     <TouchableOpacity
                         onPress={(e) => {
                             handleSubmit(e);
-                            // Keyboard.dismiss();
+                            Keyboard.dismiss();
                         }}
-                        disabled={!input.trim()}
+                        disabled={!input.trim() || isGenerating}
                         style={[
                             styles.sendButton,
                             !input.trim() && styles.sendButtonDisabled,

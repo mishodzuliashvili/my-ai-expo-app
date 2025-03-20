@@ -16,53 +16,27 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Colors } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { ThemedText } from "@/components/ThemedText";
-
-// Define chat history types
-type ChatInfo = {
-    id: string;
-    title: string;
-    lastUpdated: number;
-    preview: string;
-};
+import { ChatInfo, useChatHistory } from "@/providers/ChatHistoryProvider";
 
 export default function AppLayout() {
     const colorScheme = useColorScheme();
     const router = useRouter();
     const pathname = usePathname();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [chatHistory, setChatHistory] = useState<ChatInfo[]>([]);
+    const { chatHistory, setChatHistory } = useChatHistory();
 
-    // Define colors based on theme
     const backgroundColor = Colors[colorScheme ?? "light"].background;
     const textColor = Colors[colorScheme ?? "light"].text;
     const tintColor = Colors[colorScheme ?? "light"].tint;
     const cardColor = colorScheme === "dark" ? "#2a2a2a" : "#f5f5f5";
     const borderColor = colorScheme === "dark" ? "#ffffff1a" : "#bdb9b9";
-    // Load chat history from AsyncStorage
-    useEffect(() => {
-        const loadChatHistory = async () => {
-            try {
-                const historyData = await AsyncStorage.getItem("chatHistory");
-                if (historyData) {
-                    const parsedHistory = JSON.parse(historyData) as ChatInfo[];
-                    // Sort by most recent first
-                    parsedHistory.sort((a, b) => b.lastUpdated - a.lastUpdated);
-                    setChatHistory(parsedHistory);
-                }
-            } catch (error) {
-                console.error("Failed to load chat history:", error);
-            }
-        };
-
-        loadChatHistory();
-    }, []);
 
     const toggleSidebar = () => {
         setSidebarOpen(!sidebarOpen);
     };
 
     const startNewChat = async () => {
-        router.push("/");
+        router.push({ pathname: "/", params: {} });
         setSidebarOpen(false);
     };
 
@@ -101,20 +75,41 @@ export default function AppLayout() {
                     <Ionicons name="menu" size={24} color={textColor} />
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                    onPress={startNewChat}
-                    style={styles.logoContainer}
+                <View
+                    style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: "100%",
+                        justifyContent: "center",
+                        alignItems: "center",
+                    }}
                 >
-                    <Ionicons
-                        color={textColor}
-                        name="chatbubble-outline"
-                        size={24}
-                    />
+                    <TouchableOpacity
+                        onPress={startNewChat}
+                        style={{
+                           
+                            justifyContent: "center",
+                            alignItems: "center",
+                            flexDirection: "row",
+                            // zIndex: 1,
+                            gap: "8",
+                        }}
+                    >
+                        <Ionicons
+                            name="chatbubble-outline"
+                            size={24}
+                            color={textColor}
+                        />
 
-                    <ThemedText style={[styles.logoText]}>AI Chat</ThemedText>
-                </TouchableOpacity>
+                        <ThemedText style={[styles.logoText]}>
+                            AI Chat
+                        </ThemedText>
+                    </TouchableOpacity>
+                </View>
 
-                {pathname !== "/" && ( // Assuming "/" is the creation page route
+                {pathname !== "/" && (
                     <TouchableOpacity
                         onPress={startNewChat}
                         style={styles.newChatButton}
@@ -239,6 +234,7 @@ export default function AppLayout() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        marginTop: 30,
     },
     header: {
         flexDirection: "row",
@@ -343,6 +339,7 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         marginBottom: 8,
         paddingLeft: 15,
+        height: 55,
     },
     historyItemContent: {
         padding: 12,
